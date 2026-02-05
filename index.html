@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>Riwaq Digital</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{margin:0;font-family:Tahoma,Arial;background:#0b1020;color:#fff}
+header{text-align:center;padding:30px;background:#0e1530}
+header h1{color:#2ecc71;margin:0}
+section{max-width:900px;margin:30px auto;padding:20px}
+
+.card{
+  background:#111a3a;
+  padding:20px;
+  border-radius:10px;
+  margin-bottom:20px;
+  display:flex;
+  gap:15px
+}
+.cover{
+  width:110px;
+  height:150px;
+  object-fit:cover;
+  border-radius:6px
+}
+.card-content{flex:1}
+
+button,input,textarea{
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  border:none;
+  border-radius:6px;
+  font-size:16px
+}
+button{background:#22c55e;color:#000;cursor:pointer}
+.deleteBtn{background:#ef4444;color:#fff}
+.hidden{display:none}
+
+.wallet{
+  background:#020617;
+  padding:10px;
+  border-radius:6px;
+  word-break:break-all;
+  margin:10px 0
+}
+
+.notice{
+  background:#1f2937;
+  border-right:4px solid #facc15;
+  padding:10px;
+  margin-top:10px;
+  font-size:14px;
+  color:#facc15
+}
+small{color:#ccc}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>Riwaq Digital</h1>
+  <p>متجر الكتب الرقمية – تسليم فوري</p>
+</header>
+
+<section>
+
+<!-- قائمة الكتب -->
+<div id="listView"></div>
+
+<!-- صفحة التفاصيل -->
+<div id="detailView" class="hidden"></div>
+
+<!-- الدفع -->
+<div id="payBox" class="card hidden" style="flex-direction:column">
+  <h3>💳 الدفع</h3>
+  <p>حوّل المبلغ إلى العنوان التالي (USDT TRC20):</p>
+  <div class="wallet">TCn8wX1g4HpdkX8gEN7BqRNWKCsSRzgsi8</div>
+
+  <div class="notice">
+    تنبيه: في حال عدم إتمام الدفع، لن يتم تحويل أو تحميل الملف.
+    يرجى الاحتفاظ بوصل الدفع.
+  </div>
+
+  <button onclick="confirmPayment()">✅ تم الدفع</button>
+  <div id="status" style="margin-top:15px"></div>
+</div>
+
+<!-- زر لوحة التحكم المخفي -->
+<button onclick="toggleAdmin()" style="
+position:fixed;bottom:10px;left:10px;
+opacity:.2;font-size:12px;width:auto">⚙</button>
+
+<!-- لوحة التحكم -->
+<div id="adminBox" class="hidden">
+  <div class="card" style="flex-direction:column">
+    <h3>🔐 لوحة التحكم</h3>
+    <input type="password" id="adminPass" placeholder="كلمة السر">
+    <button onclick="login()">دخول</button>
+
+    <div id="adminPanel" class="hidden">
+      <hr>
+      <input id="pname" placeholder="اسم الكتاب">
+      <input id="pprice" placeholder="السعر">
+      <input id="pcover" placeholder="رابط صورة الغلاف">
+      <textarea id="pdesc" placeholder="وصف الكتاب"></textarea>
+      <input id="plink" placeholder="رابط التحميل">
+      <button onclick="addProduct()">➕ إضافة كتاب</button>
+    </div>
+  </div>
+</div>
+
+</section>
+
+<script>
+const ADMIN_PASSWORD="369369";
+let isAdmin=false;
+let currentLink="";
+let products=JSON.parse(localStorage.getItem("products")||"[]");
+
+/* ===== عرض القائمة ===== */
+function renderList(){
+  listView.innerHTML="";
+  products.forEach((p,i)=>{
+    listView.innerHTML+=`
+    <div class="card">
+      <img src="${p.cover}" class="cover">
+      <div class="card-content">
+        <h3>${p.name}</h3>
+        <p>💰 ${p.price}</p>
+        <button onclick="openDetail(${i})">📖 عرض التفاصيل</button>
+        ${isAdmin?`<button class="deleteBtn" onclick="remove(${i})">🗑 حذف</button>`:""}
+      </div>
+    </div>`;
+  });
+}
+
+/* ===== صفحة التفاصيل ===== */
+function openDetail(i){
+  const p=products[i];
+  detailView.innerHTML=`
+  <div class="card">
+    <img src="${p.cover}" class="cover">
+    <div class="card-content">
+      <h2>${p.name}</h2>
+      <p>${p.desc}</p>
+      <p><b>السعر:</b> ${p.price}</p>
+      <button onclick="buy(${i})">🛒 شراء</button>
+      <button onclick="back()">⬅ رجوع</button>
+    </div>
+  </div>`;
+  listView.classList.add("hidden");
+  detailView.classList.remove("hidden");
+}
+
+function back(){
+  detailView.classList.add("hidden");
+  listView.classList.remove("hidden");
+}
+
+/* ===== شراء ===== */
+function buy(i){
+  currentLink=products[i].link;
+  document.getElementById("payBox").classList.remove("hidden");
+  document.getElementById("status").innerHTML="";
+  window.scrollTo(0,document.body.scrollHeight);
+}
+
+/* ===== تأكيد الدفع (مُصحح) ===== */
+function confirmPayment(){
+  const status=document.getElementById("status");
+  status.innerHTML="⏳ جارٍ تجهيز التحميل، الرجاء الانتظار 15 ثانية...";
+
+  setTimeout(()=>{
+    if(!currentLink){
+      status.innerHTML="❌ خطأ في رابط التحميل";
+      return;
+    }
+    status.innerHTML=`<a href="${currentLink}" target="_blank">
+      <button>⬇️ تحميل الكتاب</button></a>`;
+  },15000);
+}
+
+/* ===== لوحة التحكم ===== */
+function toggleAdmin(){
+  adminBox.classList.toggle("hidden");
+}
+
+function login(){
+  if(adminPass.value===ADMIN_PASSWORD){
+    isAdmin=true;
+    adminPanel.classList.remove("hidden");
+    renderList();
+  }else alert("كلمة السر خطأ");
+}
+
+function addProduct(){
+  products.push({
+    name:pname.value,
+    price:pprice.value,
+    cover:pcover.value,
+    desc:pdesc.value,
+    link:plink.value
+  });
+  pname.value=pprice.value=pcover.value=pdesc.value=plink.value="";
+  save();
+}
+
+function remove(i){
+  if(confirm("حذف الكتاب؟")){
+    products.splice(i,1);
+    save();
+  }
+}
+
+function save(){
+  localStorage.setItem("products",JSON.stringify(products));
+  renderList();
+}
+
+/* تشغيل */
+renderList();
+</script>
+
+</body>
+</html>
